@@ -5,7 +5,7 @@ from .text import stem_tokens
 
 FEATS = ["rank", "bm25_norm", "dense_cos", "dense_exp", "boost", "score", "same_loc", "dist_km", "log_pop", "rating", "reviews",
          "log_price", "phone_hidden", "msg_forbidden", "cat_main", "title_len", "q_len", "q_ntok", "has_params", "seen",
-         "mc_prob", "tok_overlap", "title_has_q", "mem_level", "mem_logn", "params_overlap"]
+         "mc_prob", "tok_overlap", "title_has_q", "mem_level", "mem_logn", "params_overlap", "dense2_cos", "dense2_exp"]
 
 
 def title_stems(corpus: pd.DataFrame) -> list[set]:
@@ -60,11 +60,12 @@ class FeatureBuilder:
             povl = np.array([len(ps & self.pstems[i]) / len(ps) for i in it], np.float32) if ps else np.zeros(n, np.float32)
             ml = np.array([found[qi].get(i, (4, 0))[0] for i in it], np.float32)
             mn = np.log1p(np.array([found[qi].get(i, (4, 0))[1] for i in it], np.float32))
+            d2 = (f[:, 3], f[:, 4]) if f.shape[1] >= 7 else (np.zeros(n, np.float32), np.zeros(n, np.float32))
             rows.append(np.column_stack([
-                np.arange(n), f[:, 0], f[:, 1], f[:, 2], f[:, 3], f[:, 4], same, dist, self.bo.log_pop[it],
+                np.arange(n), f[:, 0], f[:, 1], f[:, 2], f[:, -2], f[:, -1], same, dist, self.bo.log_pop[it],
                 self.rating[it], self.reviews[it], self.log_price[it], self.phone[it], self.msg[it], self.cat_main[it],
                 self.title_len[it], np.full(n, len(q_text[qi])), np.full(n, len(qs)), np.full(n, has_params[qi]),
-                np.full(n, int(seen[qi])), mcp, overlap, has_q, ml, mn, povl]))
+                np.full(n, int(seen[qi])), mcp, overlap, has_q, ml, mn, povl, d2[0], d2[1]]))
         return pd.DataFrame(np.vstack(rows), columns=FEATS)
 
 

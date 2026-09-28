@@ -10,26 +10,29 @@ from cg.sources.memory import ClickMemory
 from cg.sources.bm25 import BM25Source
 from cg.sources.microcat import MicrocatClassifier
 from cg.boost import Booster, location_centroids
-from cg.scoring import FullScorer
+from cg.scoring import MultiScorer
 from cg.rerank import FeatureBuilder
 from cg.submit import build_answer, save
 
+FT_MODEL = str(ART / "models/e5s_ft_v1")
 CONFIGS = {
+    "v6": dict(name="v6_rerank_two_encoders", dense=[(DENSE_MODEL, "benchcorpus_v1", 50.0), (FT_MODEL, "benchcorpus_ft1", 10.0)],
+               boost=dict(b=5, c=0.5, d=5, scale_km=100), rerank="reranker_v6.pkl", pool=300),
     "v3": dict(name="v3_full_bm25_dense_tau50", model=DENSE_MODEL, emb_key="benchcorpus_v1", w_bm25=1.0, w_dense=1.0, tau=50.0,
                boost=dict(b=5, c=0.5, d=5, scale_km=100), rerank=None, pool=50),
-    "v4": dict(name="v4b_rerank_centroids", model=DENSE_MODEL, emb_key="benchcorpus_v1", w_bm25=1.0, w_dense=1.0, tau=50.0,
-               boost=dict(b=5, c=0.5, d=5, scale_km=100), rerank="reranker_v3.pkl", pool=300),
+    "v4": dict(name="v4c_rerank_desc6000", model=DENSE_MODEL, emb_key="benchcorpus_v1", w_bm25=1.0, w_dense=1.0, tau=50.0,
+               boost=dict(b=5, c=0.5, d=5, scale_km=100), rerank="reranker_v5.pkl", pool=300),
     "v5": dict(name="v5_rerank_ft", model=str(ART / "models/e5s_ft_v1"), emb_key="benchcorpus_ft1", w_bm25=1.0, w_dense=1.0, tau=50.0,
                boost=dict(b=5, c=0.5, d=5, scale_km=100), rerank="reranker_ft1.pkl", pool=300),
 }
 
 
-def embeddings(cfg, corpus, bq):
+def embeddings(model, key, corpus, bq):
     """Эмбеддинги корпуса и запросов бенчмарка из кэша artifacts/emb; если кэша нет, считает их в подпроцессе."""
-    slug = cfg["model"].replace("/", "_")
-    paths = [ART / "emb" / f"{slug}_{cfg['emb_key']}.npy", ART / "emb" / f"{slug}_benchq_{cfg['emb_key']}.npy"]
+    slug = model.replace("/", "_")
+    paths = [ART / "emb" / f"{slug}_{key}.npy", ART / "emb" / f"{slug}_benchq_{key}.npy"]
     if not all(p.exists() for p in paths):
-        subprocess.run([sys.executable, str(ROOT / "scripts/embed_bench.py"), cfg["model"], cfg["emb_key"]], check=True)
+        subprocess.run([sys.executable, str(ROOT / "scripts/embed_bench.py"), model, key], check=True)
     c_emb, q_emb = (np.load(p) for p in paths)
     assert len(c_emb) == len(corpus) and len(q_emb) == len(bq)
     return c_emb, q_emb
@@ -39,14 +42,14 @@ def main(cfg):
     t0 = time.time()
     train, bq, corpus = prepare(load("train")), prepare(load("benchmark_queries")), load("benchmark_items")
     cidx = {i: n for n, i in enumerate(corpus.item_id)}
-    c_emb, q_emb = embeddings(cfg, corpus, bq)
+    dense = cfg.get("dense") or [(cfg["model"], cfg["emb_key"], cfg["tau"])]
+    embs = [embeddings(model, key, corpus, bq) for model, key, tau in dense]
     mem = ClickMemory(train, cidx)
     bm = BM25Source(bm25_item_text(corpus).tolist())
     boost = Booster(corpus, mem.item_pop, location_centroids(corpus, train), **cfg["boost"])
     boost.prepare(bq)
-    fs = FullScorer(bm, c_emb, boost)
-    top, feats = fs.run(dense_query_text(bq).tolist(), q_emb, K=cfg["pool"], w_bm25=cfg["w_bm25"], w_dense=cfg["w_dense"],
-                        tau=cfg["tau"], boost_all=boost.all, details=True)
+    fs = MultiScorer(bm, [(c, tau, 1.0) for (c, q), (_, _, tau) in zip(embs, dense)], boost)
+    top, feats = fs.run(dense_query_text(bq).tolist(), [q for c, q in embs], K=cfg["pool"], boost_all=boost.all, details=True)
     if cfg["rerank"]:
         mc = MicrocatClassifier().fit(train)
         fb = FeatureBuilder(corpus, boost, mc.classes)
@@ -61,4 +64,4 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    main(CONFIGS[sys.argv[1] if len(sys.argv) > 1 else "v4"])
+    main(CONFIGS[sys.argv[1] if len(sys.argv) > 1 else "v6"])

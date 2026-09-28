@@ -13,6 +13,6 @@ def dense_query_text(df: pd.DataFrame) -> pd.Series:
 
 
 def bm25_item_text(df: pd.DataFrame) -> pd.Series:
-    """Текст объявления для BM25: заголовок с весом 3, параметры и описание."""
-    return ((df.item_title_raw + " . ") * 3 + df.item_infm_params_text.str.slice(0, 600) + " . "
-            + df.item_description_raw.str.slice(0, 300))
+    """Текст объявления для BM25: заголовок с весом 3, начало параметров и практически полное описание."""
+    return ((df.item_title_raw + " . ") * 3 + df.item_infm_params_text.str.slice(0, 300) + " . "
+            + df.item_description_raw.str.slice(0, 6000))

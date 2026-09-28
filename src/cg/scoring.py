@@ -51,3 +51,34 @@ class FullScorer:
                         dsc[idx] if dsc is not None else np.zeros(K), m[idx] if m is not None else np.ones(K), s[idx]]
                 feats.append(np.column_stack(cols).astype(np.float32))
         return (out, feats) if details else out
+
+
+class MultiScorer(FullScorer):
+    """Полный скоринг с несколькими bi-encoder'ами: bm25/max + sum_k w_k * exp(tau_k * (cos_k - max))."""
+
+    def __init__(self, bm25, dense: list, boost=None):
+        super().__init__(bm25, None, boost)
+        self.dense = [(np.ascontiguousarray(c.T.astype(np.float32)), tau, w) for c, tau, w in dense]
+
+    def run(self, queries_text, q_embs: list, K: int = 50, boost_all=None, details: bool = False):
+        """Топ-K индексов; details: матрица (bm25_norm, cos_1, exp_1, ..., cos_k, exp_k, boost, score) на запрос."""
+        toks = bm25s.tokenize([self.bm25._norm(q) for q in queries_text], stopwords=None, stemmer=self.bm25.stemmer,
+                              show_progress=False, return_ids=False)
+        out, feats = [], []
+        for qi in range(len(queries_text)):
+            b = self._bm25_scores(toks[qi]).astype(np.float32)
+            b = b / max(b.max(), 1e-6)
+            s, parts = b.copy(), [b]
+            for (c, tau, w), q in zip(self.dense, q_embs):
+                cos = q[qi].astype(np.float32) @ c
+                e = np.exp(tau * (cos - cos.max()))
+                s += w * e
+                parts += [cos, e]
+            m = boost_all(qi) if boost_all is not None else np.ones_like(s)
+            s = s * m
+            idx = np.argpartition(-s, K)[:K]
+            idx = idx[np.lexsort((idx, -s[idx]))]
+            out.append(idx.tolist())
+            if details:
+                feats.append(np.column_stack([p[idx] for p in parts] + [m[idx], s[idx]]).astype(np.float32))
+        return (out, feats) if details else out
