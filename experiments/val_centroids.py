@@ -4,14 +4,14 @@ from cg.config import ART, SEED
 from cg.pipeline import bm25_item_text, dense_query_text
 from cg.sources.memory import ClickMemory
 from cg.sources.bm25 import BM25Source
-from cg.boost import Booster, location_centroids
+from cg.boost import Booster, location_centroids, _median_xy
 from cg.scoring import FullScorer
 from cg.metrics import report
 t0 = time.time()
 d = pickle.load(open(ART/"val_split.pkl", "rb")); A, V, corpus, rel, seen_q = d["A"], d["V"], d["corpus"], d["rel"], d["seen_q"]
 cidx = {i: n for n, i in enumerate(corpus.item_id)}
 mem = ClickMemory(A, cidx)
-cent = location_centroids(corpus, A)
+cent = _median_xy(pd.concat([corpus, A[corpus.columns.intersection(A.columns)]], ignore_index=True), "item_location_id")  # только по item_location_id
 s = A.assign(lat=pd.to_numeric(A.item_latitude, errors="coerce"), lon=pd.to_numeric(A.item_longitude, errors="coerce")).dropna(subset=["lat", "lon"])
 cent_search = s.groupby(s.search_location_id.fillna(-1).astype(int))[["lat", "lon"]].median()
 cent2 = pd.concat([cent, cent_search[~cent_search.index.isin(cent.index)]])

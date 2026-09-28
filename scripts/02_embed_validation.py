@@ -1,3 +1,4 @@
+"""Эмбеддинги исходного multilingual-e5-small для запросов V, запросов бенчмарка и корпуса валидации (кэш в artifacts/emb)."""
 import pickle, time, numpy as np
 from cg.config import ART
 from cg.data import load

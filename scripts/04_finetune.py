@@ -1,5 +1,7 @@
 """Дообучение bi-encoder на парах (запрос → выбранное объявление) из A с in-batch негативами (MNRL)."""
-import pickle, sys, time, numpy as np, pandas as pd, torch
+import os, pickle, sys, time
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+import numpy as np, pandas as pd, torch
 from datasets import Dataset
 from sentence_transformers import SentenceTransformer, SentenceTransformerTrainer, SentenceTransformerTrainingArguments, losses
 from sentence_transformers.training_args import BatchSamplers

@@ -1,3 +1,5 @@
+import os
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")  # операции без MPS-реализации уходят на CPU
 import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer

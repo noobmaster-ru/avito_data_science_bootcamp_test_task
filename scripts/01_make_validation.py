@@ -1,3 +1,4 @@
+"""Сплит train → A (лог для памяти/обучения) и V (валидация), корпус валидации, бейзлайны (память кликов, BM25) и кэш их кандидатов."""
 import time, pickle, numpy as np, pandas as pd
 from cg.data import load, item_text, query_text
 from cg.validation import prepare, make_split, make_val_corpus
