@@ -16,7 +16,9 @@ from cg.submit import build_answer, save
 
 FT_MODEL = str(ART / "models/e5s_ft_v1")
 CONFIGS = {
-    "v6": dict(name="v6_rerank_two_encoders", dense=[(DENSE_MODEL, "benchcorpus_v1", 50.0), (FT_MODEL, "benchcorpus_ft1", 10.0)],
+    "v7": dict(name="v7_rerank_ft_w2_pool500", dense=[(DENSE_MODEL, "benchcorpus_v1", 50.0, 1.0), (FT_MODEL, "benchcorpus_ft1", 10.0, 2.0)],
+               boost=dict(b=5, c=0.5, d=5, scale_km=100), rerank="reranker_v7.pkl", pool=500),
+    "v6": dict(name="v6_rerank_two_encoders", dense=[(DENSE_MODEL, "benchcorpus_v1", 50.0, 1.0), (FT_MODEL, "benchcorpus_ft1", 10.0, 1.0)],
                boost=dict(b=5, c=0.5, d=5, scale_km=100), rerank="reranker_v6.pkl", pool=300),
     "v3": dict(name="v3_full_bm25_dense_tau50", model=DENSE_MODEL, emb_key="benchcorpus_v1", w_bm25=1.0, w_dense=1.0, tau=50.0,
                boost=dict(b=5, c=0.5, d=5, scale_km=100), rerank=None, pool=50),
@@ -42,13 +44,13 @@ def main(cfg):
     t0 = time.time()
     train, bq, corpus = prepare(load("train")), prepare(load("benchmark_queries")), load("benchmark_items")
     cidx = {i: n for n, i in enumerate(corpus.item_id)}
-    dense = cfg.get("dense") or [(cfg["model"], cfg["emb_key"], cfg["tau"])]
-    embs = [embeddings(model, key, corpus, bq) for model, key, tau in dense]
+    dense = cfg.get("dense") or [(cfg["model"], cfg["emb_key"], cfg["tau"], 1.0)]
+    embs = [embeddings(model, key, corpus, bq) for model, key, tau, w in dense]
     mem = ClickMemory(train, cidx)
     bm = BM25Source(bm25_item_text(corpus).tolist())
     boost = Booster(corpus, mem.item_pop, location_centroids(corpus, train), **cfg["boost"])
     boost.prepare(bq)
-    fs = MultiScorer(bm, [(c, tau, 1.0) for (c, q), (_, _, tau) in zip(embs, dense)], boost)
+    fs = MultiScorer(bm, [(c, tau, w) for (c, q), (_, _, tau, w) in zip(embs, dense)], boost)
     top, feats = fs.run(dense_query_text(bq).tolist(), [q for c, q in embs], K=cfg["pool"], boost_all=boost.all, details=True)
     if cfg["rerank"]:
         mc = MicrocatClassifier().fit(train)
@@ -64,4 +66,4 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    main(CONFIGS[sys.argv[1] if len(sys.argv) > 1 else "v6"])
+    main(CONFIGS[sys.argv[1] if len(sys.argv) > 1 else "v7"])
