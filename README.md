@@ -11,11 +11,13 @@
 
 ## Как запустить
 
-Нужны Python 3.12, [uv](https://docs.astral.sh/uv/) и три файла задания в `data/`. Всё считается локально, без внешних API;
-веса `intfloat/multilingual-e5-small` скачиваются с Hugging Face один раз.
+Нужны [uv](https://docs.astral.sh/uv/) (Python 3.12 он поставит сам) и три файла задания в `data/`. Всё считается локально,
+без внешних API; веса `intfloat/multilingual-e5-small` скачиваются с Hugging Face один раз. На macOS для LightGBM нужен
+`brew install libomp`.
 
 ```bash
-git clone <этот репозиторий> && cd avito_bootcamp_test
+git clone https://github.com/noobmaster-ru/avito_data_science_bootcamp_test_task.git
+cd avito_data_science_bootcamp_test_task
 uv sync                                                            # окружение .venv по pyproject.toml / uv.lock
 cp /path/to/{train,benchmark_queries,benchmark_items}.parquet data/
 # дообученный энкодер (архив 333 МБ, в git не помещается): скачать и распаковать, команды ниже

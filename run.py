@@ -38,6 +38,7 @@ def embeddings(model: str, key: str, corpus, bq):
 
 def main(name: str):
     cfg, t0 = CONFIGS[name], time.time()
+    ART.mkdir(exist_ok=True)
     train, bq, corpus = prepare(load("train")), prepare(load("benchmark_queries")), load("benchmark_items")
     cidx = {i: n for n, i in enumerate(corpus.item_id)}
     embs = [embeddings(model, key, corpus, bq) for model, key, tau, w in cfg["dense"]]
